@@ -1,17 +1,19 @@
 //! Traits for configuring a node.
 
-use crate::{primitives::NodePrimitives, ConfigureEvm, EngineTypes};
+use std::marker::PhantomData;
+
 use reth_db_api::{
     database::Database,
     database_metrics::{DatabaseMetadata, DatabaseMetrics},
 };
-use reth_evm::execute::BlockExecutorProvider;
+use reth_evm::{execute::BlockExecutorProvider, ConfigureEvmCommit};
 use reth_network::NetworkHandle;
 use reth_payload_builder::PayloadBuilderHandle;
 use reth_provider::FullProvider;
 use reth_tasks::TaskExecutor;
 use reth_transaction_pool::TransactionPool;
-use std::marker::PhantomData;
+
+use crate::{primitives::NodePrimitives, EngineTypes};
 
 /// The type that configures the essential types of an ethereum like node.
 ///
@@ -119,7 +121,7 @@ pub trait FullNodeComponents: FullNodeTypes + Clone + 'static {
     type Pool: TransactionPool + Unpin;
 
     /// The node's EVM configuration, defining settings for the Ethereum Virtual Machine.
-    type Evm: ConfigureEvm;
+    type Evm: ConfigureEvmCommit;
 
     /// The type that knows how to execute blocks.
     type Executor: BlockExecutorProvider;
@@ -145,3 +147,34 @@ pub trait FullNodeComponents: FullNodeTypes + Clone + 'static {
     /// Returns the task executor.
     fn task_executor(&self) -> &TaskExecutor;
 }
+
+/// Customizable node add-on types.
+pub trait NodeAddOns<N: FullNodeComponents>: Send + Sync + Unpin + Clone + 'static {
+    /// The core `eth` namespace API type to install on the RPC server (see
+    /// `reth_rpc_eth_api::EthApiServer`).
+    type EthApi: Send + Clone;
+}
+
+impl<N: FullNodeComponents> NodeAddOns<N> for () {
+    type EthApi = ();
+}
+
+/// Returns the builder for type.
+pub trait BuilderProvider<N: FullNodeComponents>: Send {
+    /// Context required to build type.
+    type Ctx<'a>;
+
+    /// Returns builder for type.
+    #[allow(clippy::type_complexity)]
+    fn builder() -> Box<dyn for<'a> Fn(Self::Ctx<'a>) -> Self + Send>;
+}
+
+impl<N: FullNodeComponents> BuilderProvider<N> for () {
+    type Ctx<'a> = ();
+
+    fn builder() -> Box<dyn for<'a> Fn(Self::Ctx<'a>) -> Self + Send> {
+        Box::new(noop_builder)
+    }
+}
+
+const fn noop_builder(_: ()) {}

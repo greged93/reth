@@ -1,16 +1,17 @@
 //! A generic [`NodeComponentsBuilder`]
 
+use std::{future::Future, marker::PhantomData};
+
 use crate::{
     components::{
         Components, ConsensusBuilder, ExecutorBuilder, NetworkBuilder, NodeComponents,
         PayloadServiceBuilder, PoolBuilder,
     },
-    BuilderContext, ConfigureEvm, FullNodeTypes,
+    BuilderContext, FullNodeTypes,
 };
 use reth_consensus::Consensus;
-use reth_evm::execute::BlockExecutorProvider;
+use reth_evm::{execute::BlockExecutorProvider, ConfigureEvmCommit};
 use reth_transaction_pool::TransactionPool;
-use std::{future::Future, marker::PhantomData};
 
 /// A generic, general purpose and customizable [`NodeComponentsBuilder`] implementation.
 ///
@@ -369,7 +370,7 @@ where
     F: FnOnce(&BuilderContext<Node>) -> Fut + Send,
     Fut: Future<Output = eyre::Result<Components<Node, Pool, EVM, Executor, Cons>>> + Send,
     Pool: TransactionPool + Unpin + 'static,
-    EVM: ConfigureEvm,
+    EVM: ConfigureEvmCommit,
     Executor: BlockExecutorProvider,
     Cons: Consensus + Clone + Unpin + 'static,
 {

@@ -15,10 +15,11 @@ use reth_basic_payload_builder::{
 };
 use reth_errors::RethError;
 use reth_evm::{
+    execute::EvmTransact,
     system_calls::{
         post_block_withdrawal_requests_contract_call, pre_block_beacon_root_contract_call,
     },
-    ConfigureEvm,
+    ConfigureEvmCommit,
 };
 use reth_evm_ethereum::{eip6110::parse_deposits_from_receipts, EthEvmConfig};
 use reth_execution_types::ExecutionOutcome;
@@ -67,7 +68,7 @@ impl Default for EthereumPayloadBuilder {
 // Default implementation of [PayloadBuilder] for unit type
 impl<EvmConfig, Pool, Client> PayloadBuilder<Pool, Client> for EthereumPayloadBuilder<EvmConfig>
 where
-    EvmConfig: ConfigureEvm,
+    EvmConfig: ConfigureEvmCommit,
     Client: StateProviderFactory,
     Pool: TransactionPool,
 {
@@ -113,7 +114,8 @@ where
 
         let base_fee = initialized_block_env.basefee.to::<u64>();
         let block_number = initialized_block_env.number.to::<u64>();
-        let block_gas_limit = initialized_block_env.gas_limit.try_into().unwrap_or(u64::MAX);
+        let block_gas_limit =
+            initialized_block_env.gas_limit.try_into().unwrap_or(chain_spec.max_gas_limit);
 
         // apply eip-4788 pre block contract call
         pre_block_beacon_root_contract_call(
@@ -257,7 +259,7 @@ pub fn default_ethereum_payload_builder<EvmConfig, Pool, Client>(
     args: BuildArguments<Pool, Client, EthPayloadBuilderAttributes, EthBuiltPayload>,
 ) -> Result<BuildOutcome<EthBuiltPayload>, PayloadBuilderError>
 where
-    EvmConfig: ConfigureEvm,
+    EvmConfig: ConfigureEvmCommit,
     Client: StateProviderFactory,
     Pool: TransactionPool,
 {
@@ -280,7 +282,8 @@ where
     debug!(target: "payload_builder", id=%attributes.id, parent_hash = ?parent_block.hash(), parent_number = parent_block.number, "building new payload");
     let mut cumulative_gas_used = 0;
     let mut sum_blob_gas_used = 0;
-    let block_gas_limit: u64 = initialized_block_env.gas_limit.try_into().unwrap_or(u64::MAX);
+    let block_gas_limit: u64 =
+        initialized_block_env.gas_limit.try_into().unwrap_or(chain_spec.max_gas_limit);
     let base_fee = initialized_block_env.basefee.to::<u64>();
 
     let mut executed_txs = Vec::new();
@@ -365,7 +368,7 @@ where
         );
 
         // Configure the environment for the block.
-        let mut evm = evm_config.evm_with_env(&mut db, env);
+        let mut evm = evm_config.evm_with_env_transact(&mut db, env);
 
         let ResultAndState { result, state } = match evm.transact() {
             Ok(res) => res,

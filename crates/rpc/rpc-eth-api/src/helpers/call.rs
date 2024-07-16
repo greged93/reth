@@ -2,7 +2,9 @@
 //! methods.
 
 use futures::Future;
-use reth_evm::{ConfigureEvm, ConfigureEvmEnv};
+use reth_evm::{
+    execute::EvmTransact, ConfigureEvm, ConfigureEvmCommit, ConfigureEvmEnv, ConfigureEvmTransact,
+};
 use reth_primitives::{
     revm_primitives::{
         BlockEnv, CfgEnvWithHandlerCfg, EnvWithHandlerCfg, ExecutionResult, HaltReason,
@@ -10,7 +12,7 @@ use reth_primitives::{
     },
     Bytes, TransactionSignedEcRecovered, TxKind, B256, U256,
 };
-use reth_provider::StateProvider;
+use reth_provider::{ChainSpecProvider, StateProvider};
 use reth_revm::{database::StateProviderDatabase, db::CacheDB, DatabaseRef};
 use reth_rpc_eth_types::{
     cache::db::{StateCacheDbRefMutWrapper, StateProviderTraitObjWrapper},
@@ -29,8 +31,6 @@ use reth_rpc_types::{
 };
 use revm::{Database, DatabaseCommit};
 use revm_inspectors::access_list::AccessListInspector;
-#[cfg(feature = "optimism")]
-use revm_primitives::OptimismFields;
 use tracing::trace;
 
 use super::{LoadBlock, LoadPendingBlock, LoadState, LoadTransaction, SpawnBlocking, Trace};
@@ -276,7 +276,7 @@ pub trait Call: LoadState + SpawnBlocking {
     /// Returns a handle for reading evm config.
     ///
     /// Data access in default (L1) trait method implementations.
-    fn evm_config(&self) -> &impl ConfigureEvm;
+    fn evm_config(&self) -> &impl ConfigureEvmCommit;
 
     /// Executes the closure with the state that corresponds to the given [`BlockId`].
     fn with_state_at_block<F, T>(&self, at: BlockId, f: F) -> EthResult<T>
@@ -296,11 +296,11 @@ pub trait Call: LoadState + SpawnBlocking {
     ) -> EthResult<(ResultAndState, EnvWithHandlerCfg)>
     where
         DB: Database,
-        <DB as Database>::Error: Into<EthApiError>,
+        DB::Error: Into<EthApiError>,
     {
-        let mut evm = self.evm_config().evm_with_env(db, env);
+        let mut evm = self.evm_config().evm_with_env_transact(db, env);
         let res = evm.transact()?;
-        let (_, env) = evm.into_db_and_env_with_handler_cfg();
+        let env = evm.env_with_handler_cfg();
         Ok((res, env))
     }
 
@@ -572,7 +572,8 @@ pub trait Call: LoadState + SpawnBlocking {
         }
 
         // We can now normalize the highest gas limit to a u64
-        let mut highest_gas_limit: u64 = highest_gas_limit.try_into().unwrap_or(u64::MAX);
+        let mut highest_gas_limit: u64 =
+            highest_gas_limit.try_into().unwrap_or(self.provider().chain_spec().max_gas_limit);
 
         // If the provided gas limit is less than computed cap, use that
         env.tx.gas_limit = env.tx.gas_limit.min(highest_gas_limit);
@@ -823,6 +824,8 @@ pub trait Call: LoadState + SpawnBlocking {
             )?;
 
         let gas_limit = gas.unwrap_or_else(|| block_env.gas_limit.min(U256::from(u64::MAX)).to());
+
+        #[allow(clippy::needless_update)]
         let env = TxEnv {
             gas_limit: gas_limit
                 .try_into()
@@ -840,10 +843,8 @@ pub trait Call: LoadState + SpawnBlocking {
             blob_hashes: blob_versioned_hashes.unwrap_or_default(),
             max_fee_per_blob_gas,
             // EIP-7702 fields
-            authorization_list: None,
             // authorization_list: TODO
-            #[cfg(feature = "optimism")]
-            optimism: OptimismFields { enveloped_tx: Some(Bytes::new()), ..Default::default() },
+            ..Default::default()
         };
 
         Ok(env)

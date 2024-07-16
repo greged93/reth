@@ -14,20 +14,23 @@ use reth::{
         handler::register::EvmHandler,
         inspector_handle_register,
         precompile::{Precompile, PrecompileOutput, PrecompileSpecId},
-        ContextPrecompiles, Database, Evm, EvmBuilder, GetInspector,
+        ContextPrecompiles, Database, DatabaseCommit, Evm, EvmBuilder, GetInspector,
     },
     tasks::TaskManager,
 };
 use reth_chainspec::{Chain, ChainSpec, Head};
 use reth_evm_ethereum::EthEvmConfig;
-use reth_node_api::{ConfigureEvm, ConfigureEvmEnv, FullNodeTypes};
+use reth_node_api::{
+    ConfigureEvm, ConfigureEvmCommit, ConfigureEvmEnv, ConfigureEvmTransact, FullNodeTypes,
+};
 use reth_node_core::{args::RpcServerArgs, node_config::NodeConfig};
-use reth_node_ethereum::{EthExecutorProvider, EthereumNode};
+use reth_node_ethereum::{node::EthereumAddOns, EthExecutorProvider, EthereumNode};
 use reth_primitives::{
     revm_primitives::{AnalysisKind, CfgEnvWithHandlerCfg, TxEnv},
     Address, Header, TransactionSigned, U256,
 };
 use reth_tracing::{RethTracer, Tracer};
+use revm_primitives::EnvWithHandlerCfg;
 use std::sync::Arc;
 
 /// Custom EVM configuration
@@ -132,6 +135,42 @@ impl ConfigureEvm for MyEvmConfig {
     }
 }
 
+impl ConfigureEvmCommit for MyEvmConfig {
+    type EvmCommitType<'a, DB: Database + DatabaseCommit + 'a> = reth_revm::Evm<'a, (), DB>;
+
+    fn evm_with_env_commit<'a, DB>(
+        &'a self,
+        db: DB,
+        env: EnvWithHandlerCfg,
+    ) -> Self::EvmCommitType<'a, DB>
+    where
+        DB: Database + DatabaseCommit + 'a,
+    {
+        let mut evm = self.evm(db);
+        evm.modify_spec_id(env.spec_id());
+        evm.context.evm.env = env.env;
+        evm
+    }
+}
+
+impl ConfigureEvmTransact for MyEvmConfig {
+    type EvmTransactType<'a, DB: Database + 'a> = reth_revm::Evm<'a, (), DB>;
+
+    fn evm_with_env_transact<'a, DB>(
+        &'a self,
+        db: DB,
+        env: EnvWithHandlerCfg,
+    ) -> Self::EvmTransactType<'a, DB>
+    where
+        DB: Database + 'a,
+    {
+        let mut evm = self.evm(db);
+        evm.modify_spec_id(env.spec_id());
+        evm.context.evm.env = env.env;
+        evm
+    }
+}
+
 /// Builds a regular ethereum block executor that uses the custom EVM.
 #[derive(Debug, Default, Clone, Copy)]
 #[non_exhaustive]
@@ -180,6 +219,7 @@ async fn main() -> eyre::Result<()> {
         .with_types::<EthereumNode>()
         // use default ethereum components but with our executor
         .with_components(EthereumNode::components().executor(MyExecutorBuilder::default()))
+        .with_add_ons::<EthereumAddOns>()
         .launch()
         .await
         .unwrap();

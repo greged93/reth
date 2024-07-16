@@ -5,7 +5,9 @@ use std::time::{Duration, Instant};
 
 use futures::Future;
 use reth_chainspec::EthereumHardforks;
-use reth_evm::{system_calls::pre_block_beacon_root_contract_call, ConfigureEvm, ConfigureEvmEnv};
+use reth_evm::{
+    system_calls::pre_block_beacon_root_contract_call, ConfigureEvmCommit, ConfigureEvmEnv,
+};
 use reth_execution_types::ExecutionOutcome;
 use reth_primitives::{
     constants::{eip4844::MAX_DATA_GAS_PER_BLOCK, BEACON_NONCE, EMPTY_ROOT_HASH},
@@ -60,7 +62,7 @@ pub trait LoadPendingBlock {
     /// Returns a handle for reading evm config.
     ///
     /// Data access in default (L1) trait method implementations.
-    fn evm_config(&self) -> &impl ConfigureEvm;
+    fn evm_config(&self) -> &impl ConfigureEvmCommit;
 
     /// Configures the [`CfgEnvWithHandlerCfg`] and [`BlockEnv`] for the pending block
     ///
@@ -169,15 +171,13 @@ pub trait LoadPendingBlock {
         result: ExecutionResult,
         cumulative_gas_used: u64,
     ) -> Receipt {
+        #[allow(clippy::needless_update)]
         Receipt {
             tx_type: tx.tx_type(),
             success: result.is_success(),
             cumulative_gas_used,
             logs: result.into_logs().into_iter().map(Into::into).collect(),
-            #[cfg(feature = "optimism")]
-            deposit_nonce: None,
-            #[cfg(feature = "optimism")]
-            deposit_receipt_version: None,
+            ..Default::default()
         }
     }
 
