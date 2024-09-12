@@ -7,7 +7,7 @@ use crate::{
     },
     writer::UnifiedStorageWriter,
     AccountReader, BlockExecutionReader, BlockExecutionWriter, BlockHashReader, BlockNumReader,
-    BlockReader, BlockWriter, BundleStateInit, EvmEnvProvider, FinalizedBlockReader,
+    BlockReader, BlockWriter, BundleStateInit, DBProvider, EvmEnvProvider, FinalizedBlockReader,
     FinalizedBlockWriter, HashingWriter, HeaderProvider, HeaderSyncGap, HeaderSyncGapProvider,
     HistoricalStateProvider, HistoryWriter, LatestStateProvider, OriginalValuesKnown,
     ProviderError, PruneCheckpointReader, PruneCheckpointWriter, RequestsProvider, RevertsInit,
@@ -2480,13 +2480,7 @@ impl<TX: DbTx> EvmEnvProvider for DatabaseProvider<TX> {
         let total_difficulty = self
             .header_td_by_number(header.number)?
             .ok_or_else(|| ProviderError::HeaderNotFound(header.number.into()))?;
-        evm_config.fill_cfg_and_block_env(
-            cfg,
-            block_env,
-            &self.chain_spec,
-            header,
-            total_difficulty,
-        );
+        evm_config.fill_cfg_and_block_env(cfg, block_env, header, total_difficulty);
         Ok(())
     }
 
@@ -2516,7 +2510,7 @@ impl<TX: DbTx> EvmEnvProvider for DatabaseProvider<TX> {
         let total_difficulty = self
             .header_td_by_number(header.number)?
             .ok_or_else(|| ProviderError::HeaderNotFound(header.number.into()))?;
-        evm_config.fill_cfg_env(cfg, &self.chain_spec, header, total_difficulty);
+        evm_config.fill_cfg_env(cfg, header, total_difficulty);
         Ok(())
     }
 }
@@ -3697,6 +3691,18 @@ impl<TX: DbTxMut> FinalizedBlockWriter for DatabaseProvider<TX> {
         Ok(self
             .tx
             .put::<tables::ChainState>(tables::ChainStateKey::LastFinalizedBlock, block_number)?)
+    }
+}
+
+impl<TX: DbTx> DBProvider for DatabaseProvider<TX> {
+    type Tx = TX;
+
+    fn tx_ref(&self) -> &Self::Tx {
+        &self.tx
+    }
+
+    fn tx_mut(&mut self) -> &mut Self::Tx {
+        &mut self.tx
     }
 }
 
