@@ -18,7 +18,7 @@ use reth_primitives::{
 };
 use reth_revm::primitives::{CfgEnvWithHandlerCfg, U256};
 use reth_scroll_chainspec::ScrollChainSpec;
-use reth_scroll_consensus::apply_curie_hard_fork;
+use reth_scroll_consensus::{apply_curie_hard_fork, L1_GAS_PRICE_ORACLE_ADDRESS};
 use reth_scroll_execution::FinalizeExecution;
 use reth_scroll_forks::{ScrollHardfork, ScrollHardforks};
 use revm::{
@@ -104,6 +104,15 @@ where
 
         let mut cumulative_gas_used = 0;
         let mut receipts = Vec::with_capacity(block.body.transactions.len());
+
+        // load the l1 gas oracle contract in cache
+        let _ = evm
+            .context
+            .evm
+            .inner
+            .db
+            .load_cache_account(L1_GAS_PRICE_ORACLE_ADDRESS)
+            .map_err(|err| err.into())?;
 
         for (sender, transaction) in block.transactions_with_sender() {
             // The sum of the transaction’s gas limit and the gas utilized in this block prior,

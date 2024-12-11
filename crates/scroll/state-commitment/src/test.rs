@@ -95,7 +95,7 @@ proptest! {
             trie_nodes.extend(trie_updates);
 
             // Verify the result
-            let expected_root = reth_scroll_state_commitment::test_utils::state_root(
+            let expected_root = reth_scroll_state_commitment::state_root(
                 state.iter().map(|(key, account)| (*key, (*account, std::iter::empty())))
             );
             assert_eq!(expected_root.0, state_root.0);
@@ -165,7 +165,7 @@ proptest! {
                 storage.clear();
             }
             storage.append(&mut storage_update);
-            let expected_root = reth_scroll_state_commitment::test_utils::storage_root(storage.clone());
+            let expected_root = reth_scroll_state_commitment::storage_root(storage.clone());
             assert_eq!(expected_root, storage_root);
         }
     }
@@ -228,6 +228,7 @@ fn insert_storage(tx: &impl DbTxMut, hashed_address: B256, storage: &BTreeMap<B2
         .unwrap();
     }
 }
+
 #[test]
 fn arbitrary_storage_root() {
     proptest!(ProptestConfig::with_cases(10), |(item in arb::<(Address, std::collections::BTreeMap<B256, U256>)>())| {
@@ -249,7 +250,7 @@ fn arbitrary_storage_root() {
 
         let tx =  factory.provider_rw().unwrap();
         let got = StorageRoot::from_tx(tx.tx_ref(), address).root().unwrap();
-        let expected = reth_scroll_state_commitment::test_utils::storage_root(storage.into_iter());
+        let expected = reth_scroll_state_commitment::storage_root(storage.into_iter());
         assert_eq!(expected, got);
     });
 }

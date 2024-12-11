@@ -19,5 +19,8 @@ pub use value::PoseidonValueHasher;
 #[cfg(feature = "test-utils")]
 pub mod test_utils;
 
-#[cfg(all(test, feature = "scroll"))]
+#[cfg(all(test, feature = "test-utils", feature = "scroll"))]
 mod test;
+
+mod zktrie;
+pub use zktrie::{state_root, storage_root};

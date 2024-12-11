@@ -21,6 +21,7 @@ use reth_chainspec::{
 use reth_ethereum_forks::{ChainHardforks, EthereumHardfork, ForkCondition, Hardfork};
 use reth_network_peers::NodeRecord;
 use reth_scroll_forks::ScrollHardforks;
+use std::collections::BTreeMap;
 
 #[cfg(not(feature = "std"))]
 use once_cell::sync::Lazy as LazyLock;
@@ -44,6 +45,9 @@ pub use dev::SCROLL_DEV;
 
 mod genesis;
 pub use genesis::{ScrollChainConfig, ScrollChainInfo};
+use reth_primitives_traits::Account;
+use reth_scroll_state_commitment::PoseidonKeyHasher;
+use reth_trie_common::KeyHasher;
 
 mod scroll;
 pub use scroll::SCROLL_MAINNET;
@@ -196,7 +200,7 @@ impl EthChainSpec for ScrollChainSpec {
     }
 
     fn genesis_hash(&self) -> B256 {
-        self.inner.genesis_hash()
+        self.genesis_header().hash_slow()
     }
 
     fn prune_delete_limit(&self) -> usize {
@@ -208,7 +212,7 @@ impl EthChainSpec for ScrollChainSpec {
     }
 
     fn genesis_header(&self) -> &Header {
-        self.inner.genesis_header()
+        self.inner.genesis_header.get_or_init(|| self.make_genesis_header())
     }
 
     fn genesis(&self) -> &Genesis {
@@ -221,6 +225,48 @@ impl EthChainSpec for ScrollChainSpec {
 
     fn bootnodes(&self) -> Option<Vec<NodeRecord>> {
         self.inner.bootnodes()
+    }
+}
+
+impl ScrollChainSpec {
+    fn make_genesis_header(&self) -> Header {
+        let hashed_state = self
+            .inner
+            .genesis
+            .alloc
+            .iter()
+            .map(|(address, genesis_account)| {
+                let account = Into::<Account>::into(genesis_account);
+                let storage = genesis_account
+                    .storage
+                    .clone()
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|(slot, value)| {
+                        (PoseidonKeyHasher::hash_key(slot), U256::from_be_bytes(*value))
+                    })
+                    .collect::<BTreeMap<_, _>>();
+                (PoseidonKeyHasher::hash_key(*address), (account, storage))
+            })
+            .collect::<BTreeMap<_, _>>();
+
+        Header {
+            gas_limit: self.genesis.gas_limit,
+            difficulty: self.genesis.difficulty,
+            nonce: self.genesis.nonce.into(),
+            extra_data: self.genesis.extra_data.clone(),
+            state_root: reth_scroll_state_commitment::state_root(hashed_state),
+            timestamp: self.genesis.timestamp,
+            mix_hash: self.genesis.mix_hash,
+            beneficiary: self.genesis.coinbase,
+            base_fee_per_gas: None,
+            withdrawals_root: None,
+            parent_beacon_block_root: None,
+            blob_gas_used: None,
+            excess_blob_gas: None,
+            requests_hash: None,
+            ..Default::default()
+        }
     }
 }
 
@@ -352,12 +398,22 @@ mod tests {
     use reth_ethereum_forks::{EthereumHardfork, ForkHash};
     use reth_scroll_forks::ScrollHardfork;
 
-    #[ignore = "waiting on https://github.com/scroll-tech/reth/pull/36"]
+    #[test]
+    fn scroll_genesis_state_root() {
+        let scroll_mainnet = ScrollChainSpecBuilder::scroll_mainnet().build();
+        let genesis_root = scroll_mainnet.genesis_header().state_root;
+
+        assert_eq!(
+            b256!("08d535cc60f40af5dd3b31e0998d7567c2d568b224bed2ba26070aeb078d1339"),
+            genesis_root
+        );
+    }
+
     #[test]
     fn scroll_mainnet_forkids() {
         let scroll_mainnet = ScrollChainSpecBuilder::scroll_mainnet().build();
-        let _ =
-            scroll_mainnet.genesis_hash.set(SCROLL_MAINNET.genesis_hash.get().copied().unwrap());
+
+        let _ = scroll_mainnet.genesis_hash();
         test_fork_ids(
             &SCROLL_MAINNET,
             &[
