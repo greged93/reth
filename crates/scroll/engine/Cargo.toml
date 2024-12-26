@@ -13,14 +13,28 @@ workspace = true
 
 [dependencies]
 # reth
-reth-primitives = { workspace = true, features = ["scroll"] }
+reth-primitives = { workspace = true, default-features = false }
 
 # scroll
-reth-scroll-chainspec.workspace = true
-reth-scroll-forks.workspace = true
+reth-scroll-chainspec = { workspace = true, default-features = false }
+reth-scroll-forks = { workspace = true, default-features = false }
 
 # alloy
 alloy-consensus.workspace = true
 alloy-eips.workspace = true
 alloy-rlp.workspace = true
 alloy-rpc-types-engine.workspace = true
+
+[features]
+default = ["std"]
+std = [
+	"reth-primitives/std",
+	"reth-scroll-chainspec/std",
+	"reth-scroll-forks/std",
+	"alloy-consensus/std",
+	"alloy-eips/std",
+	"alloy-rlp/std",
+	"alloy-rpc-types-engine/std"
+]
+scroll = ["reth-primitives/scroll"]
+optimism = ["reth-primitives/optimism"]

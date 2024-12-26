@@ -420,13 +420,13 @@ reth-rpc-eth-types = { path = "crates/rpc/rpc-eth-types", default-features = fal
 reth-rpc-layer = { path = "crates/rpc/rpc-layer" }
 reth-rpc-server-types = { path = "crates/rpc/rpc-server-types" }
 reth-rpc-types-compat = { path = "crates/rpc/rpc-types-compat" }
-reth-scroll-chainspec = { path = "crates/scroll/chainspec" }
+reth-scroll-chainspec = { path = "crates/scroll/chainspec", default-features = false }
 reth-scroll-cli = { path = "crates/scroll/cli" }
 reth-scroll-consensus = { path = "crates/scroll/consensus" }
 reth-scroll-engine = { path = "crates/scroll/engine" }
 reth-scroll-evm = { path = "crates/scroll/evm" }
 reth-scroll-execution = { path = "crates/scroll/execution" }
-reth-scroll-forks = { path = "crates/scroll/hardforks" }
+reth-scroll-forks = { path = "crates/scroll/hardforks", default-features = false }
 reth-scroll-node = { path = "crates/scroll/node" }
 reth-scroll-primitives = { path = "crates/scroll/primitives" }
 reth-scroll-state-commitment = { path = "crates/scroll/state-commitment" }
