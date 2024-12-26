@@ -1,0 +1,26 @@
+[package]
+name = "reth-scroll-engine"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+exclude.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# reth
+reth-primitives = { workspace = true, features = ["scroll"] }
+
+# scroll
+reth-scroll-chainspec.workspace = true
+reth-scroll-forks.workspace = true
+
+# alloy
+alloy-consensus.workspace = true
+alloy-eips.workspace = true
+alloy-rlp.workspace = true
+alloy-rpc-types-engine.workspace = true
