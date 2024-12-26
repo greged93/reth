@@ -8,7 +8,7 @@ use alloy_rpc_types_engine::{
 use alloy_rpc_types_eth::{Block, BlockTransactions};
 use reth_node_api::EngineTypes;
 use reth_rpc_builder::auth::AuthServerHandle;
-use reth_tracing::tracing::{debug, warn};
+use reth_tracing::tracing::warn;
 use ringbuffer::{AllocRingBuffer, RingBuffer};
 use std::future::Future;
 use tokio::sync::mpsc;
